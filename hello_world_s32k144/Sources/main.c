@@ -30,6 +30,7 @@ volatile int exit_code = 0;
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "status.h"
 
 /* This example is setup to work by default with EVB. To use it with other boards
    please comment the following line
@@ -94,14 +95,27 @@ int main(void)
   /* Initialize and configure clocks
    * 	-	see clock manager component for details
    */
-  CLOCK_SYS_Init(g_clockManConfigsArr, CLOCK_MANAGER_CONFIG_CNT,
+  status_t clockInitStatus = CLOCK_SYS_Init(g_clockManConfigsArr, CLOCK_MANAGER_CONFIG_CNT,
 						g_clockManCallbacksArr, CLOCK_MANAGER_CALLBACK_CNT);
-  CLOCK_SYS_UpdateConfiguration(0U, CLOCK_MANAGER_POLICY_AGREEMENT);
+  if (clockInitStatus != STATUS_SUCCESS) {
+      exit_code = 1;  /* Clock initialization failed */
+      goto cleanup;
+  }
+
+  status_t clockUpdateStatus = CLOCK_SYS_UpdateConfiguration(0U, CLOCK_MANAGER_POLICY_AGREEMENT);
+  if (clockUpdateStatus != STATUS_SUCCESS) {
+      exit_code = 2;  /* Clock configuration update failed */
+      goto cleanup;
+  }
 
   /* Initialize pins
    *	-	See PinSettings component for more info
    */
-  PINS_DRV_Init(NUM_OF_CONFIGURED_PINS, g_pin_mux_InitConfigArr);
+  status_t pinInitStatus = PINS_DRV_Init(NUM_OF_CONFIGURED_PINS, g_pin_mux_InitConfigArr);
+  if (pinInitStatus != STATUS_SUCCESS) {
+      exit_code = 3;  /* Pin initialization failed */
+      goto cleanup;
+  }
 
   /* Output direction for LED0 & LED1 */
 //  PINS_DRV_SetPinsDirection(GPIO_PORT, ((1 << LED1) | (1 << LED2)));
@@ -116,7 +130,8 @@ int main(void)
   PINS_DRV_ClearPins(GPIO_PORTB, 1 << CAN_STB);
   PINS_DRV_ClearPins(GPIO_PORTA, 1 << CAN_EN);
 
-  for (;;)
+  /* Main application loop - runs until exit_code is set */
+  while (exit_code == 0)
   {
       /* Insert a small delay to make the blinking visible */
       delay(720000);
@@ -128,6 +143,9 @@ int main(void)
       PINS_DRV_TogglePins(GPIO_PORTA, (1 << CAN_EN));
       PINS_DRV_TogglePins(GPIO_PORTB, (1 << CAN_STB));
   }
+
+cleanup:
+  /* Cleanup code - reached when exit_code is set or initialization fails */
 
   /*** Don't write any code pass this line, or it will be deleted during code generation. ***/
   /*** RTOS startup code. Macro PEX_RTOS_START is defined by the RTOS component. DON'T MODIFY THIS CODE!!! ***/
